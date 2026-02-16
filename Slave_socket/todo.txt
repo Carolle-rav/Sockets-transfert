@@ -1,0 +1,213 @@
+Je cree un projet de transfert de fichier socket avec java 
+j'utilise un principe de client, server et sous-server 
+
+Voici le client 
+
+package transfert;
+
+import java.io.*;
+import java.net.Socket;
+
+public class Client_socket {
+    private String ipServer;
+    private int portServer;
+    private Socket socket;
+
+    public int getPortServer() {
+        return portServer;
+    }
+
+    public void setPortServer(int portServer) {
+        this.portServer = portServer;
+    }
+
+    public String getIpServer() {
+        return ipServer;
+    }
+
+    public void setIpServer(String ipServer) {
+        this.ipServer = ipServer;
+    }
+
+    public Socket getSocket() {
+        return socket;
+    }
+
+    public void setSocket(Socket socket) {
+        this.socket = socket;
+    }
+
+    // Méthode pour se connecter au serveur
+    public void connectToServer() {
+        try {
+            socket = new Socket(ipServer, portServer);
+            System.out.println("Connecté au serveur : " + ipServer + ":" + portServer);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Méthode pour envoyer un fichier
+    public void sendFile(String filePath) {
+        try (FileInputStream fis = new FileInputStream(filePath);
+             OutputStream out = socket.getOutputStream()) {
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            System.out.println("Envoi du fichier en cours...");
+            while ((bytesRead = fis.read(buffer)) > 0) {
+                out.write(buffer, 0, bytesRead);
+            }
+            System.out.println("Fichier envoyé avec succès !");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+et son main 
+import transfert.Client_socket;
+
+public class App {
+    public static void main(String[] args) throws Exception {
+        Client_socket client = new Client_socket();
+        client.setIpServer("localhost"); // Adresse IP du serveur
+        client.setPortServer(12345); // Port du serveur
+
+        client.connectToServer(); // Se connecter au serveur
+        client.sendFile("D:\\Dossier\\Sockets\\Client_socket\\src\\test.txt"); 
+    }
+}
+
+
+Le server 
+package transfert;
+
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+
+public class Server_socket {
+    private ServerSocket socket;
+    private int port;
+    private Socket slave_socket;
+
+    public Socket getSlave_socket() {
+        return slave_socket;
+    }
+
+    public void setSlave_socket(Socket slave_socket) {
+        this.slave_socket = slave_socket;
+    }
+
+    public ServerSocket getSocket() {
+        return socket;
+    }
+
+    public void setSocket(ServerSocket socket) {
+        this.socket = socket;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public void setPort(int port) {
+        this.port = port;
+    }
+
+    // Méthode pour ouvrir une connexion
+    public void startServer() {
+        try {
+            socket = new ServerSocket(port);
+            System.out.println("Serveur démarré sur le port " + port);
+            System.out.println("En attente d'une connexion client...");
+            Socket clientSocket = socket.accept();
+            System.out.println("Connexion établie avec le client : " + clientSocket.getInetAddress());
+
+            // Recevoir un fichier
+            receiveFile(clientSocket);
+
+            clientSocket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Méthode pour recevoir un fichier
+    private void receiveFile(Socket clientSocket) {
+        try (InputStream in = clientSocket.getInputStream();
+             FileOutputStream fos = new FileOutputStream("fichier_recu.txt")) {
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            System.out.println("Réception du fichier en cours...");
+            while ((bytesRead = in.read(buffer)) > 0) {
+                fos.write(buffer, 0, bytesRead);
+            }
+            System.out.println("Fichier reçu avec succès !");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+Et son main
+ import transfert.Server_socket;
+
+public class App {
+    public static void main(String[] args) {
+        Server_socket server = new Server_socket();
+        server.setPort(12345); // Définir le port
+        server.startServer(); // Démarrer le serveur
+    }
+}
+
+et pour le slave(sous-server) qui n'est pas encore au point
+package transfert;
+
+public class Slave {
+    String route;
+    int port;
+    public String getRoute() {
+        return route;
+    }
+    public void setRoute(String route) {
+        this.route = route;
+    }
+    public int getPort() {
+        return port;
+    }
+    public void setPort(int port) {
+        this.port = port;
+    }
+}
+package transfert;
+
+import java.net.ServerSocket;
+
+public class Slave_socket {
+    
+    ServerSocket socket;
+    int port;
+}
+
+Je veux que pour le server lors d'un envoie de fichier le programme ecris directement dans fichier  nomme liste_data.txt 
+ex : 
+
+photo_moi.jpg
+lesson.pdf
+
+et pour le slave dans le constructeur de Slave_socket on ajoute un Vector<Slave> qui se fait par la lecture d'un fichier slaves.txt 
+Comme ceci 
+9090:---:D:\S4\Dossier\Sockets\Slave_socket\Slave_1
+1010:---:D:\S4\Dossier\Sockets\Slave_socket\Slave_2
+
+pour ensuite diviser le fichier lors de l'upload du client vers le server et ensuite divise par le nombre de slave dans slave_socket et departage dans les dossiers des slaves
+
+
+
+
+
+
+ & 'D:\Studie\logiciel\JDK\jdk-8.0.422.05-hotspot\bin\java.exe' '-cp' 'D:\S4\Dossier\Sockets\Slave_socket\bin' 'App'

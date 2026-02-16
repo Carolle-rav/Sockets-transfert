@@ -1,0 +1,95 @@
+import transfert.Server_socket;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
+public class App {
+    private static Server_socket server;
+    private static JLabel statusLabel;
+
+    public static void main(String[] args) {
+        String slaveConfigPath = "D:\\Dossier\\Sockets2\\Dossier\\Sockets\\Slave_socket\\src\\slaves.txt";
+
+        // Créer le JFrame
+        JFrame frame = new JFrame("Serveur du Transfert du fichier");
+        frame.setSize(400, 250);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setLayout(new BorderLayout());
+
+        // Obtenir l'IPv4 de l'ordinateur
+        String localIp = "127.0.0.1"; // Valeur par défaut
+        try {
+            localIp = InetAddress.getLocalHost().getHostAddress();
+        } catch (UnknownHostException e) {
+            JOptionPane.showMessageDialog(frame, "Impossible de récupérer l'adresse IP locale.", "Erreur", JOptionPane.ERROR_MESSAGE);
+        }
+
+        // Créer les composants
+        JPanel panel = new JPanel(new GridLayout(4, 2, 10, 10));
+        JLabel ipLabel = new JLabel("IP du serveur :");
+        JTextField ipField = new JTextField(localIp);
+        ipField.setEditable(false); // Empêcher la modification de l'IP affichée
+        JLabel portLabel = new JLabel("Port du serveur :");
+        JTextField portField = new JTextField("12345"); // Port par défaut
+        JLabel stateLabel = new JLabel("État du serveur :");
+        statusLabel = new JLabel("OFF");
+        statusLabel.setForeground(Color.RED);
+        JButton startButton = new JButton("Démarrer");
+        JButton stopButton = new JButton("Arrêter");
+        stopButton.setEnabled(false);
+
+        // Ajouter les composants au panel
+        panel.add(ipLabel);
+        panel.add(ipField);
+        panel.add(portLabel);
+        panel.add(portField);
+        panel.add(stateLabel);
+        panel.add(statusLabel);
+        panel.add(startButton);
+        panel.add(stopButton);
+
+        frame.add(panel, BorderLayout.CENTER);
+
+        // Ajouter les actions des boutons
+        startButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                String ip = ipField.getText();
+                String portText = portField.getText();
+                try {
+                    int port = Integer.parseInt(portText);
+                    server = new Server_socket(port, slaveConfigPath);
+                    new Thread(server::startServer).start();
+                    statusLabel.setText("ON");
+                    statusLabel.setForeground(Color.GREEN);
+                    startButton.setEnabled(false);
+                    stopButton.setEnabled(true);
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(frame, "Le port doit être un nombre valide.", "Erreur", JOptionPane.ERROR_MESSAGE);
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(frame, "Erreur : " + ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        stopButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (server != null) {
+                    server.closeServer();
+                    statusLabel.setText("OFF");
+                    statusLabel.setForeground(Color.RED);
+                    startButton.setEnabled(true);
+                    stopButton.setEnabled(false);
+                }
+            }
+        });
+
+        // Afficher la fenêtre
+        frame.setVisible(true);
+    }
+}

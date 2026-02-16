@@ -1,0 +1,3 @@
+localhost:---:9090:---:D:\S4\Dossier\Sockets\Slave_socket\Slave_1
+localhost:---:1010:---:D:\S4\Dossier\Sockets\Slave_socket\Slave_2
+localhost:---:2510:---:D:\S4\Dossier\Sockets\Slave_socket\Slave_3

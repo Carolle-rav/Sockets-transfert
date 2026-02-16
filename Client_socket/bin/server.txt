@@ -1,0 +1,1 @@
+localhost:---:12345:---:D:\S4\Dossier\Sockets\Client_socket\downloads
