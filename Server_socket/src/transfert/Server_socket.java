@@ -85,7 +85,7 @@ public class Server_socket {
     private void handleDownloadRequest(DataInputStream dataIn, DataOutputStream dataOut) {
         try {
             String fileName = dataIn.readUTF(); 
-            setFilesList("D:\\Dossier\\Sockets\\Server_socket\\liste_data.txt");
+            setFilesList("D:\\S4\\Dossier\\Sockets\\Server_socket\\liste_data.txt");
             if (filesList != null && filesList.contains(fileName)) {
                 dataOut.writeUTF("FILE_FOUND");
                 dataOut.flush();
@@ -108,7 +108,7 @@ public class Server_socket {
     private void handleRemoveRequest(DataInputStream dataIn, DataOutputStream dataOut) {
         try {
             String fileName = dataIn.readUTF(); 
-            setFilesList("D:\\Dossier\\Sockets\\Server_socket\\liste_data.txt");
+            setFilesList("D:\\S4\\Dossier\\Sockets\\Server_socket\\liste_data.txt");
             if (filesList != null && filesList.contains(fileName)) {
                 
                 removeFileFromLog(fileName);
@@ -228,7 +228,7 @@ public class Server_socket {
         }
     }
     private void removeFileFromLog(String fileName) {
-        String logFilePath = "D:\\Dossier\\Sockets\\Server_socket\\liste_data.txt";
+        String logFilePath = "D:\\S4\\Dossier\\Sockets\\Server_socket\\liste_data.txt";
         List<String> updatedList = new ArrayList<>();
     
         try (BufferedReader reader = new BufferedReader(new FileReader(logFilePath))) {
@@ -300,18 +300,25 @@ public class Server_socket {
         }
     }
     private void sendFileList(DataOutputStream dataOut) {
-        String logFilePath = "D:\\Dossier\\Sockets\\Server_socket\\liste_data.txt";
+        String logFilePath = "D:\\S4\\Dossier\\Sockets\\Server_socket\\liste_data.txt";
         try (BufferedReader reader = new BufferedReader(new FileReader(logFilePath))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                dataOut.writeUTF(line); 
+                if (!line.trim().isEmpty()) {
+                    dataOut.writeUTF(line.trim());
+                }
             }
-            dataOut.writeUTF("END_OF_LIST"); // Indiquer la fin de la liste
-            dataOut.flush();
             System.out.println("Liste des fichiers envoyée au client.");
         } catch (IOException e) {
             System.err.println("Erreur lors de la lecture ou de l'envoi de la liste des fichiers.");
             e.printStackTrace();
+        } finally {
+            try {
+                dataOut.writeUTF("END_OF_LIST"); // Toujours envoyer la fin de liste
+                dataOut.flush();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
     
@@ -339,7 +346,7 @@ public class Server_socket {
     
     
     private void saveFileNameToLog(String fileName) {
-        String logFilePath = "D:\\Dossier\\Sockets\\Server_socket\\liste_data.txt";
+        String logFilePath = "D:\\S4\\Dossier\\Sockets\\Server_socket\\liste_data.txt";
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(logFilePath, true))) {
             writer.write(fileName);  // Enregistrer uniquement le nom du fichier principal
             writer.newLine();
