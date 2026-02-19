@@ -1,6 +1,7 @@
 package transfert;
 
 import java.io.*;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.ServerSocket;
 import java.util.ArrayList;
@@ -151,10 +152,31 @@ public class Server_socket {
             e.printStackTrace();
         }
     }
+    /**
+     * Vérifie si un slave est en ligne en tentant une connexion avec un timeout.
+     */
+    private boolean isSlaveAlive(Slave slave) {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress(slave.getIp(), slave.getPort()), 2000);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     private void distributeFileToSlaves(byte[] fileBuffer, String originalFileName) {
         if (slaves.isEmpty() || fileBuffer == null) {
             System.out.println("Aucun slave configuré ou fichier vide.");
             return;
+        }
+
+        // Vérifier que tous les slaves sont en ligne avant de distribuer
+        for (int i = 0; i < slaves.size(); i++) {
+            if (!isSlaveAlive(slaves.get(i))) {
+                System.err.println("ERREUR : Le slave " + slaves.get(i).getIp() + ":" + slaves.get(i).getPort() + " est hors ligne.");
+                System.err.println("Upload annulé : tous les slaves doivent être en ligne pour garantir la réplication.");
+                return;
+            }
         }
 
         saveFileNameToLog(originalFileName);
@@ -170,7 +192,15 @@ public class Server_socket {
             System.arraycopy(fileBuffer, start, part, 0, part.length);
 
             String partName = "part__" + (i + 1) + "__" + originalFileName;
+
+            // Envoi au slave principal
             sendPartToSlave(slaves.get(i), part, partName);
+
+            // Envoi de la réplique au slave suivant (circulaire)
+            int replicaIndex = (i + 1) % slaves.size();
+            String replicaName = "replica__" + (i + 1) + "__" + originalFileName;
+            sendPartToSlave(slaves.get(replicaIndex), part, replicaName);
+            System.out.println("Réplique " + replicaName + " envoyée au slave " + slaves.get(replicaIndex).getIp() + ":" + slaves.get(replicaIndex).getPort());
         }
     }
    
@@ -178,53 +208,96 @@ public class Server_socket {
     
     
     
+    /**
+     * Récupère une part depuis un slave donné. Retourne null en cas d'échec.
+     */
+    private byte[] fetchPartFromSlave(Slave slave, String partName) {
+        ByteArrayOutputStream partStream = new ByteArrayOutputStream();
+        try (Socket socket = new Socket(slave.getIp(), slave.getPort());
+             DataOutputStream dataOut = new DataOutputStream(socket.getOutputStream());
+             DataInputStream dataIn = new DataInputStream(socket.getInputStream())) {
+
+            dataOut.writeUTF("SEND_PART");
+            dataOut.writeUTF(partName);
+            dataOut.flush();
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = dataIn.read(buffer)) > 0) {
+                partStream.write(buffer, 0, bytesRead);
+            }
+
+            if (partStream.size() > 0) {
+                return partStream.toByteArray();
+            }
+        } catch (IOException e) {
+            System.err.println("Échec récupération de " + partName + " depuis " + slave.getIp() + ":" + slave.getPort());
+        }
+        return null;
+    }
+
     private byte[] assembleFileFromSlaves(String fileName) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
     
         for (int i = 0; i < slaves.size(); i++) {
             String partName = "part__" + (i + 1) + "__" + fileName;
-    
-            try (Socket socket = new Socket(slaves.get(i).getIp(), slaves.get(i).getPort());
-                 DataOutputStream dataOut = new DataOutputStream(socket.getOutputStream());
-                 DataInputStream dataIn = new DataInputStream(socket.getInputStream())) {
-    
-                // commande pour récupérer une partie
-                dataOut.writeUTF("SEND_PART");
-                dataOut.writeUTF(partName);
-                dataOut.flush();
-    
-              
-                byte[] buffer = new byte[4096];
-                int bytesRead;
-                while ((bytesRead = dataIn.read(buffer)) > 0) {
-                    baos.write(buffer, 0, bytesRead);
+            String replicaName = "replica__" + (i + 1) + "__" + fileName;
+            int replicaIndex = (i + 1) % slaves.size();
+
+            byte[] partData = null;
+
+            // Essayer de récupérer depuis le slave principal
+            if (isSlaveAlive(slaves.get(i))) {
+                System.out.println("Tentative de récupération de " + partName + " depuis le slave principal...");
+                partData = fetchPartFromSlave(slaves.get(i), partName);
+            }
+
+            // Si le slave principal a échoué, essayer la réplique sur le slave suivant
+            if (partData == null) {
+                System.out.println("Slave principal indisponible pour " + partName + ", tentative via la réplique...");
+                if (isSlaveAlive(slaves.get(replicaIndex))) {
+                    partData = fetchPartFromSlave(slaves.get(replicaIndex), replicaName);
                 }
-    
-            } catch (IOException e) {
-                System.err.println("Erreur lors de la récupération de la partie " + partName);
-                e.printStackTrace();
+            }
+
+            if (partData != null) {
+                baos.write(partData, 0, partData.length);
+                System.out.println("Partie " + (i + 1) + " récupérée avec succès.");
+            } else {
+                System.err.println("ERREUR CRITIQUE : Impossible de récupérer la partie " + (i + 1) + " (ni principal, ni réplique). Fichier incomplet !");
             }
         }
     
         return baos.toByteArray();
     }
+    /**
+     * Envoie une commande de suppression à un slave. Ignore les erreurs si le slave est hors ligne.
+     */
+    private void removePartFromSlave(Slave slave, String partName) {
+        try (Socket socket = new Socket(slave.getIp(), slave.getPort());
+             DataOutputStream dataOut = new DataOutputStream(socket.getOutputStream())) {
+
+            dataOut.writeUTF("REMOVE_PART");
+            dataOut.writeUTF(partName);
+            dataOut.flush();
+            System.out.println("Demande de suppression envoyée pour : " + partName);
+
+        } catch (IOException e) {
+            System.err.println("Slave hors ligne, suppression différée pour : " + partName);
+        }
+    }
+
     private void removeFileFromSlaves(String fileName) {
         for (int i = 0; i < slaves.size(); i++) {
             String partName = "part__" + (i + 1) + "__" + fileName;
-    
-            try (Socket socket = new Socket(slaves.get(i).getIp(), slaves.get(i).getPort());
-                 DataOutputStream dataOut = new DataOutputStream(socket.getOutputStream())) {
-    
-                //  la commande pour supprimer une partie
-                dataOut.writeUTF("REMOVE_PART");
-                dataOut.writeUTF(partName);
-                dataOut.flush();
-                System.out.println("Demande de suppression envoyée pour : " + partName);
-    
-            } catch (IOException e) {
-                System.err.println("Erreur lors de la suppression de la partie " + partName);
-                e.printStackTrace();
-            }
+            String replicaName = "replica__" + (i + 1) + "__" + fileName;
+            int replicaIndex = (i + 1) % slaves.size();
+
+            // Supprimer la part principale
+            removePartFromSlave(slaves.get(i), partName);
+
+            // Supprimer la réplique
+            removePartFromSlave(slaves.get(replicaIndex), replicaName);
         }
     }
     private void removeFileFromLog(String fileName) {

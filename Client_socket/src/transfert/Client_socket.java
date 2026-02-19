@@ -50,7 +50,7 @@ public class Client_socket {
         }
     }
 
-    // Méthode pour se connecter au serveur
+    // Méthode pour se connecter au serveur   Cree une connexion TCP vers le serveur à l'adresse ipServer:portServer
     public void connectToServer() {
         try {
             socket = new Socket(ipServer, portServer);
